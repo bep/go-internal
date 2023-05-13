@@ -25,7 +25,6 @@ import (
 	"sort"
 	"strings"
 	"sync/atomic"
-	"syscall"
 	"testing"
 	"time"
 
@@ -1004,15 +1003,7 @@ func waitOrStop(ctx context.Context, cmd *exec.Cmd, killDelay time.Duration) err
 		case <-ctx.Done():
 		}
 
-		var interrupt os.Signal = syscall.SIGQUIT
-		if runtime.GOOS == "windows" {
-			// Per https://golang.org/pkg/os/#Signal, “Interrupt is not implemented on
-			// Windows; using it with os.Process.Signal will return an error.”
-			// Fall back directly to Kill instead.
-			interrupt = os.Kill
-		}
-
-		err := cmd.Process.Signal(interrupt)
+		err := stopProcess(cmd.Process)
 		if err == nil {
 			err = ctx.Err() // Report ctx.Err() as the reason we interrupted.
 		} else if err == os.ErrProcessDone {
@@ -1052,7 +1043,7 @@ func waitOrStop(ctx context.Context, cmd *exec.Cmd, killDelay time.Duration) err
 
 // interruptProcess sends os.Interrupt to p if supported, or os.Kill otherwise.
 func interruptProcess(p *os.Process) {
-	if err := p.Signal(os.Interrupt); err != nil {
+	if err := stopProcess(p); err != nil {
 		// Per https://golang.org/pkg/os/#Signal, “Interrupt is not implemented on
 		// Windows; using it with os.Process.Signal will return an error.”
 		// Fall back to Kill instead.
